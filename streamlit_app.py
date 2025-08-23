@@ -54,7 +54,7 @@ else:
         """,
         unsafe_allow_html=True
     )
-
+PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=sharing"
 
 #Load model
 @st.cache_resource
@@ -64,10 +64,12 @@ def load_model():
     model.eval()
     return model
 
-#Load preprocessor
 @st.cache_resource
 def load_preprocessor():
-    with open("preprocess.pkl", "rb") as f:
+    if not os.path.exists("artifacts/preprocess.pkl"):
+        os.makedirs("artifacts", exist_ok=True)
+        gdown.download(PREPROCESS_URL, "artifacts/preprocess.pkl", quiet=False)
+    with open("artifacts/preprocess.pkl", "rb") as f:
         return pickle.load(f)
 
 model = load_model()
