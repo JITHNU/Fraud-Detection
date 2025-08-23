@@ -11,6 +11,8 @@ import tempfile
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 import sys
 import os
+from src.evaluate import evaluate_model
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.model import GraphSAGE
