@@ -10,7 +10,7 @@ import pickle
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from src.model import GraphSAGE
+from model import GraphSAGE
 
 st.set_page_config(
     page_title="Fraud Detection",
