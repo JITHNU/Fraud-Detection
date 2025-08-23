@@ -7,6 +7,10 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
+import os
+import gdown
+from src.model import GraphSAGE
+import tempfile
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -56,8 +60,9 @@ else:
     )
 PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=sharing"
 
-ARTIFACTS_DIR = "artifacts"
+ARTIFACTS_DIR = os.path.join(tempfile.gettempdir(), "fraud_artifacts")
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+
 PREPROCESS_PATH = os.path.join(ARTIFACTS_DIR, "preprocess.pkl")
 
 #Load model
