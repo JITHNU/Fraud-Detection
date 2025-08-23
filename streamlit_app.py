@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -7,14 +6,14 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
-import os
 import gdown
-from src.model import GraphSAGE
 import tempfile
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
+import sys
+import os
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from model import GraphSAGE
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from src.model import GraphSAGE
 
 st.set_page_config(
     page_title="Fraud Detection",
