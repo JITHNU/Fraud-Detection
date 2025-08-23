@@ -9,9 +9,13 @@ import pickle
 import gdown
 import tempfile
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
+from src.evaluate import evaluate_model
 import sys
 import os
-from src.evaluate import evaluate_model
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
