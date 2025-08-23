@@ -56,6 +56,10 @@ else:
     )
 PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=sharing"
 
+ARTIFACTS_DIR = "artifacts"
+os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+PREPROCESS_PATH = os.path.join(ARTIFACTS_DIR, "preprocess.pkl")
+
 #Load model
 @st.cache_resource
 def load_model():
@@ -66,10 +70,9 @@ def load_model():
 
 @st.cache_resource
 def load_preprocessor():
-    if not os.path.exists("preprocess.pkl"):
-        os.makedirs("artifacts", exist_ok=True)
-        gdown.download(PREPROCESS_URL, "preprocess.pkl", quiet=False)
-    with open("preprocess.pkl", "rb") as f:
+    if not os.path.exists(PREPROCESS_PATH):
+        gdown.download(PREPROCESS_URL, PREPROCESS_PATH, quiet=False)
+    with open(PREPROCESS_PATH, "rb") as f:
         return pickle.load(f)
 
 model = load_model()
