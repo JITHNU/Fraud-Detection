@@ -60,14 +60,14 @@ else:
 @st.cache_resource
 def load_model():
     model = GraphSAGE(in_channels=11, hidden_channels=64)
-    model.load_state_dict(torch.load("artifacts/model.pt", map_location="cpu"))
+    model.load_state_dict(torch.load("model.pt", map_location="cpu"))
     model.eval()
     return model
 
 #Load preprocessor
 @st.cache_resource
 def load_preprocessor():
-    with open("artifacts/preprocess.pkl", "rb") as f:
+    with open("preprocess.pkl", "rb") as f:
         return pickle.load(f)
 
 model = load_model()
