@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -7,19 +8,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 import gdown
-import tempfile
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
-from src.evaluate import evaluate_model
-import sys
-import os
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.model import GraphSAGE
+
+
+PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=drive_link"
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 st.set_page_config(
     page_title="Fraud Detection",
@@ -63,21 +58,17 @@ else:
         """,
         unsafe_allow_html=True
     )
-PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=sharing"
 
-ARTIFACTS_DIR = os.path.join(tempfile.gettempdir(), "fraud_artifacts")
-os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-
-PREPROCESS_PATH = os.path.join(ARTIFACTS_DIR, "preprocess.pkl")
 
 #Load model
 @st.cache_resource
 def load_model():
     model = GraphSAGE(in_channels=11, hidden_channels=64)
-    model.load_state_dict(torch.load("model.pt", map_location="cpu"))
+    model.load_state_dict(torch.load("artifacts/model.pt", map_location="cpu"))
     model.eval()
     return model
 
+#Load preprocessor
 @st.cache_resource
 def load_preprocessor():
     if not os.path.exists(PREPROCESS_PATH):
@@ -279,3 +270,4 @@ elif app_mode == "Bulk CSV":
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
