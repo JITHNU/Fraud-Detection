@@ -1,0 +1,21 @@
+pandas
+numpy
+matplotlib
+scikit-learn
+scipy
+seaborn
+joblib
+torch
+tqdm
+pyyaml
+networkx
+streamlit
+# Torch CPU + PyG (install via setup script for correct wheels)
+# torch
+# torchvision
+# torchaudio
+# torch-geometric
+# torch-scatter
+# torch-sparse
+# torch-cluster
+# torch-spline-conv
