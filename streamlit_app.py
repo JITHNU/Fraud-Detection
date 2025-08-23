@@ -66,10 +66,10 @@ def load_model():
 
 @st.cache_resource
 def load_preprocessor():
-    if not os.path.exists("artifacts/preprocess.pkl"):
+    if not os.path.exists("preprocess.pkl"):
         os.makedirs("artifacts", exist_ok=True)
-        gdown.download(PREPROCESS_URL, "artifacts/preprocess.pkl", quiet=False)
-    with open("artifacts/preprocess.pkl", "rb") as f:
+        gdown.download(PREPROCESS_URL, "preprocess.pkl", quiet=False)
+    with open("preprocess.pkl", "rb") as f:
         return pickle.load(f)
 
 model = load_model()
