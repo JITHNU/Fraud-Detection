@@ -1,5 +1,7 @@
 # Fraud Detection App
 
+Live Demo 🚀🔗 - https://fraud-detection-k9th4vbrnxark9okngx2dx.streamlit.app/
+
 A Streamlit web application for fraud detection in financial transactions using a pre-trained PyTorch model.
 
 ---
