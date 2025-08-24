@@ -159,7 +159,7 @@ if app_mode == "Manual Input":
 # Bulk CSV
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction")
-    uploaded_file = st.file_uploader("Upload CSV file (include 'isFraud' will generate curves)", type="csv")
+    uploaded_file = st.file_uploader("Upload CSV file (Only include 'isFraud' will generate curves)", type="csv")
     
     if uploaded_file is not None:
         chunksize = 100000
