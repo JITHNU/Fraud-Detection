@@ -159,7 +159,7 @@ if app_mode == "Manual Input":
 # Bulk CSV
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction")
-    uploaded_file = st.file_uploader("Upload CSV file (Including 'isFraud' will generate curves)", type="csv")
+    uploaded_file = st.file_uploader("Upload CSV file (Only include 'isFraud' will generate curves)", type="csv")
     
     if uploaded_file is not None:
         chunksize = 100000
@@ -167,14 +167,18 @@ elif app_mode == "Bulk CSV":
         st.subheader("Processing CSV in chunks...")
 
         try:
-            # First count rows to estimate progress
-            total_rows = sum(1 for _ in open(uploaded_file)) - 1  # exclude header
-            uploaded_file.seek(0)  # reset file pointer
-
+            # Reset file pointer and wrap uploaded file
+            uploaded_file.seek(0)
+            
+            # Progress bar
             progress_bar = st.progress(0)
-            processed_rows = 0
+            total_rows = sum(1 for _ in uploaded_file) - 1  # total rows (minus header)
+            uploaded_file.seek(0)  # reset again
 
+            processed_rows = 0
             for chunk in pd.read_csv(uploaded_file, chunksize=chunksize):
+                processed_rows += len(chunk)
+
                 # Encode 'type'
                 if 'type' in chunk.columns:
                     df_type = pd.get_dummies(chunk['type'], prefix='type')
@@ -208,11 +212,10 @@ elif app_mode == "Bulk CSV":
                 results.append(chunk)
 
                 # Update progress bar
-                processed_rows += len(chunk)
-                progress = min(1.0, processed_rows / total_rows)
-                progress_bar.progress(progress)
+                if total_rows > 0:
+                    progress = min(1.0, processed_rows / total_rows)
+                    progress_bar.progress(progress)
 
-            progress_bar.empty()  # remove progress bar after completion
             df = pd.concat(results, ignore_index=True)
 
             # Threshold slider
@@ -232,8 +235,7 @@ elif app_mode == "Bulk CSV":
             ax.set_xlabel("Fraud Probability")
             ax.set_ylabel("Count")
             st.pyplot(fig)
-            
-            # Download histogram
+
             buf = io.BytesIO()
             fig.savefig(buf, format="png")
             buf.seek(0)
@@ -262,9 +264,9 @@ elif app_mode == "Bulk CSV":
                 fig.savefig(buf_rconf, format="png")
                 buf_rconf.seek(0)
                 st.download_button(
-                    label="Download Confusion Matrix as PNG",
+                    label="Download Confusion matrix as PNG",
                     data=buf_rconf,
-                    file_name="conf_matrix.png",
+                    file_name="Conf_Matrix.png",
                     mime="image/png"
                 )
 
@@ -306,3 +308,4 @@ elif app_mode == "Bulk CSV":
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
