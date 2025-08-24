@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -10,57 +11,41 @@ import pickle
 import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 from model import GraphSAGE
-import os
-import io
-import requests
 
-# Ensure artifacts folder exists
+# Setup paths
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 os.makedirs("artifacts", exist_ok=True)
 
-# URLs
 PREPROCESS_URL = "https://drive.google.com/uc?id=1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg"
-MODEL_PATH = "model.pt"
+MODEL_PATH = "artifacts/model.pt"
 PREPROCESS_PATH = "artifacts/preprocess.pkl"
 
-st.set_page_config(
-    page_title="Fraud Detection",
-    page_icon="💳",
-    layout="wide"
-)
+# Streamlit page config
+st.set_page_config(page_title="Fraud Detection", page_icon="💳", layout="wide")
 st.config.set_option('server.maxUploadSize', 1024)  # 1GB
 
 # Theme
 theme = st.sidebar.radio("Choose Theme", ["Light 🌞", "Dark 🌙"])
 if theme == "Dark 🌙":
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             body, .stApp { background-color: black !important; color: white !important; }
-            .stTextInput, .stButton > button { background-color: #222; color: white !important; }
+            .stTextInput, .stNumberInput, .stButton > button { background-color: #222; color: white !important; }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 else:
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             body, .stApp { background-color: white !important; color: black !important; }
-            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {
-                background-color: #f9f9f9 !important;
-                color: black !important;
-            }
+            .stTextInput, .stNumberInput, .stButton > button { background-color: #f9f9f9 !important; color: black !important; }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
 # Load model
 @st.cache_resource
 def load_model():
     if not os.path.exists(MODEL_PATH):
-        st.error("Model file not found! Please upload model.pt to your repo or storage.")
-        st.stop()
+        st.error("Model file not found! Upload it to GitHub or artifacts folder.")
     model = GraphSAGE(in_channels=11, hidden_channels=64)
     model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
     model.eval()
@@ -81,7 +66,11 @@ preprocessor = load_preprocessor()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV"])
 
-# ================= Manual Input =================
+expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
+feature_cols = ['step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
+                'oldbalanceDest', 'newbalanceDest'] + expected_type_cols
+
+# ----------------------- Manual Input -----------------------
 if app_mode == "Manual Input":
     st.header("Manual Input Prediction ✍🏻")
     with st.form(key="manual_form"):
@@ -104,63 +93,70 @@ if app_mode == "Manual Input":
 
         # Encode type
         df_type = pd.get_dummies(df['type'], prefix='type')
-        expected_type_cols = ['type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
         for col in expected_type_cols:
             if col not in df_type.columns:
                 df_type[col] = 0
         df = pd.concat([df.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
 
         # Scale numeric
-        numeric_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
+        numeric_cols = ['step', 'amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest']
         df[numeric_cols] = preprocessor['scaler'].transform(df[numeric_cols])
 
-        # Feature order
-        feature_cols = expected_type_cols + numeric_cols
+        # Prepare input tensor
         X = df[feature_cols].values.astype(np.float32)
         X_tensor = torch.tensor(X)
-
         with torch.no_grad():
-            logits = model(X_tensor)
-            prob = torch.sigmoid(logits).item()
+            prob = torch.sigmoid(model(X_tensor)).item()
         prediction = "Fraud" if prob > manual_threshold else "Not Fraud"
         st.success(f"Predicted Fraud Probability: {prob:.4f}")
         st.info(f"Prediction: {prediction}")
 
-# ================= Bulk CSV =================
+# ----------------------- Bulk CSV -----------------------
 elif app_mode == "Bulk CSV":
-    st.header("Bulk CSV Prediction 📂🧑🏻‍💻 via URL")
-    expected_type_cols = ['type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']  # define here
-
+    st.header("Bulk CSV Prediction via URL or Upload")
     with st.form(key="bulk_form"):
         file_url = st.text_input("Enter CSV URL (Google Drive / Dropbox / S3)")
+        uploaded_file = st.file_uploader("Or upload CSV file directly", type="csv")
         bulk_threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
         submit_bulk = st.form_submit_button("Process CSV")
 
-    if submit_bulk and file_url:
+    if submit_bulk:
         try:
-            st.info("Downloading CSV...")
-            if "drive.google.com" in file_url:
-                file_id = file_url.split("/d/")[1].split("/")[0]
-                file_url = f"https://drive.google.com/uc?id={file_id}"
+            if uploaded_file:
+                df_iter = pd.read_csv(uploaded_file, chunksize=50000)
+            elif file_url:
+                import requests, io
+                response = requests.get(file_url)
+                response.raise_for_status()
+                df_iter = pd.read_csv(io.StringIO(response.content.decode('utf-8')), chunksize=50000)
+            else:
+                st.warning("Provide a CSV file or URL.")
+                st.stop()
 
-            response = requests.get(file_url)
-            response.raise_for_status()
-            csv_file = io.StringIO(response.content.decode("utf-8"))
-
-            chunksize = 50000
             results = []
-            total_rows = sum(1 for _ in pd.read_csv(csv_file, chunksize=chunksize))
-            csv_file.seek(0)
+            total_chunks = 0
+            for _ in df_iter:
+                total_chunks += 1
+            if uploaded_file:
+                uploaded_file.seek(0)
+                df_iter = pd.read_csv(uploaded_file, chunksize=50000)
+            elif file_url:
+                df_iter = pd.read_csv(io.StringIO(response.content.decode('utf-8')), chunksize=50000)
 
-            st.subheader("Processing CSV...")
             progress_bar = st.progress(0)
-            processed_chunks = 0
+            current_chunk = 0
 
-            for chunk in pd.read_csv(csv_file, chunksize=chunksize):
-                processed_chunks += 1
-                progress_bar.progress(processed_chunks / total_rows)
+            for chunk in df_iter:
+                current_chunk += 1
+                progress_bar.progress(current_chunk / total_chunks)
 
-                # Encode type safely
+                # Ensure numeric columns
+                numeric_cols = ['step', 'amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest']
+                for col in numeric_cols:
+                    if col not in chunk.columns:
+                        chunk[col] = 0.0
+
+                # Encode type columns
                 if 'type' in chunk.columns:
                     df_type = pd.get_dummies(chunk['type'], prefix='type')
                     for col in expected_type_cols:
@@ -171,48 +167,28 @@ elif app_mode == "Bulk CSV":
                     for col in expected_type_cols:
                         chunk[col] = 0
 
-
-                # Scale numeric safely
-                numeric_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
-                numeric_cols_present = [col for col in numeric_cols if col in chunk.columns]
-                if numeric_cols_present:
-                    chunk[numeric_cols_present] = preprocessor['scaler'].transform(chunk[numeric_cols_present])
-                else:
-                    st.warning("Chunk missing numeric columns, skipping.")
-                    continue
-
-                # Feature order
-                feature_cols = numeric_cols + expected_type_cols
-                for col in feature_cols:
-                    if col not in chunk.columns:
-                        chunk[col] = 0
+                # Reorder columns
                 X = chunk[feature_cols].values.astype(np.float32)
                 X_tensor = torch.tensor(X)
-
                 with torch.no_grad():
-                    logits = model(X_tensor)
-                    probs = torch.sigmoid(logits).numpy()
+                    probs = torch.sigmoid(model(X_tensor)).numpy()
                 chunk["fraud_probability"] = probs
                 chunk["predicted_fraud"] = np.where(chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud")
                 results.append(chunk)
 
-            if results:
-                df = pd.concat(results, ignore_index=True)
-                st.success("Bulk predictions completed! ✅")
-                st.dataframe(df[["fraud_probability","predicted_fraud"]].head(20))
+            df_final = pd.concat(results, ignore_index=True)
+            st.success("Bulk predictions completed ✅")
+            st.dataframe(df_final[["fraud_probability", "predicted_fraud"]].head(20))
 
-                # Histogram
-                fig, ax = plt.subplots()
-                sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
-                ax.set_xlabel("Fraud Probability")
-                ax.set_ylabel("Count")
-                st.pyplot(fig)
+            # Optional: Histogram
+            st.subheader("Fraud Probability Distribution")
+            fig, ax = plt.subplots()
+            sns.histplot(df_final["fraud_probability"], bins=50, kde=True, ax=ax)
+            st.pyplot(fig)
 
-                # Download CSV
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button("Download Predictions as CSV", data=csv, file_name="fraud_predictions.csv", mime="text/csv")
-            else:
-                st.warning("No valid data processed.")
+            # Download CSV
+            csv = df_final.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Predictions", data=csv, file_name="fraud_predictions.csv")
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
