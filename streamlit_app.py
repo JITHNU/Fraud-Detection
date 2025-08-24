@@ -50,20 +50,12 @@ else:
         """
         <style>
             body, .stApp { background-color: white !important; color: black !important; }
-            .reportview-container, .main, .sidebar .sidebar-content {
-                background-color: #ffffff !important;
-                color: black !important;
-            }
-            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {
-                background-color: #f9f9f9 !important;
-                color: black !important;
-            }
-            label, .css-10trblm, .css-1offfwp, .stSelectbox label {
-                color: black !important;
-            }
-            .stAlert > div {
-                color: black !important;   /* Make text black */
-            }
+            .reportview-container, .main, .sidebar .sidebar-content {background-color: #ffffff !important;color: black !important;}
+            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {background-color: #f9f9f9 !important;color: black !important;}
+            label, .css-10trblm, .css-1offfwp, .stSelectbox label {color: black !important;}
+            .stAlert > div {color: black !important;   /* Make text black */}
+            div.stButton > button:first-child {color: white !important;background-color: #1f77b4 !important;border-radius: 8px;font-weight: bold;}
+            div.stButton > button:hover {color: white !important; background-color: #10507a !important}
         </style>
         """,
         unsafe_allow_html=True
