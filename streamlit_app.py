@@ -92,7 +92,7 @@ preprocessor = load_preprocessor()
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV"])
 
-# ----------------- Manual Input -----------------
+#Manual Input
 if app_mode == "Manual Input":
     st.header(" Manual Input Prediction ✍🏻 ")
     st.markdown("Enter transaction details below:")
@@ -225,7 +225,7 @@ elif app_mode == "Bulk CSV":
             st.subheader("Predictions (Top 20 rows)")
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
-            st.subheader("⚠️ High Probability Frauds")
+            st.subheader("High Probability Frauds ⚠️ ")
             st.dataframe(df[df["predicted_fraud"]=="Fraud"])
 
             # Histogram
