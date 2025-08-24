@@ -215,20 +215,6 @@ elif app_mode == "Bulk CSV":
             threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
             df["predicted_fraud"] = np.where(df["fraud_probability"] > threshold, "Fraud", "Not Fraud")
 
-
-
-            
-            y_true = df['isFraud'].values
-            y_pred = np.where(df['fraud_probability'] > threshold, 1, 0)
-            
-            accuracy = accuracy_score(y_true, y_pred)
-            print(f"Model Accuracy: {accuracy:.4f}")
-
-
-
-
-            
-
             st.subheader("Predictions (Top 20 rows)")
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
