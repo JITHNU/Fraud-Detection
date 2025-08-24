@@ -17,7 +17,7 @@ os.makedirs("artifacts", exist_ok=True)
 
 # URLs
 PREPROCESS_URL = "https://drive.google.com/uc?id=1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg"
-MODEL_PATH = "artifacts/model.pt"
+MODEL_PATH = "model.pt"
 PREPROCESS_PATH = "artifacts/preprocess.pkl"
 
 st.set_page_config(
