@@ -12,15 +12,14 @@ A Streamlit web application for fraud detection in financial transactions using 
 
 ---
 🖥️ User Guide
+
 1️⃣ App Modes
 
 When you launch the app, you will see two options in the sidebar:
 
-Single Transaction
+Single Transaction & Bulk CSV
 
-Bulk CSV
-
-2️⃣ Single Transaction Mode
+✅ Single Transaction Mode
 
 In this mode, you manually enter transaction details in the form.
 The app will predict if the transaction is Fraud or Not Fraud.
@@ -41,13 +40,13 @@ newbalanceDest – Balance after transaction for receiver (e.g., 7000.0)
 
 type – Transaction type (CASH_IN, CASH_OUT, DEBIT, PAYMENT, TRANSFER)
 
-➡️ After submitting, you’ll see:
+🖲️ After submitting, you’ll see:
 
 Fraud Probability (0 to 1)
 
 Prediction (Fraud / Not Fraud)
 
-3️⃣ Bulk CSV Mode
+✅ Bulk CSV Mode
 
 In this mode, you upload a CSV file containing multiple transactions. The app will process them in chunks for efficiency.
 
@@ -71,7 +70,7 @@ If your file includes isFraud, the app will generate Confusion Matrix, ROC Curve
 
 If isFraud is missing, the app will only predict fraud probabilities.
 
-4️⃣ Output in Bulk CSV Mode
+🖲️ Output in Bulk CSV Mode
 
 Predictions Table: Shows fraud probability and classification.
 
