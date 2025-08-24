@@ -27,7 +27,7 @@ st.set_page_config(
     page_icon="💳",
     layout="wide"
 )
-st.config.set_option('server.maxUploadSize', 1024)  # 1GB
+st.config.set_option('server.maxUploadSize', 200)  # 200MB
 
 # Theme
 theme = st.sidebar.radio("Choose Theme", ["Light 🌞", "Dark 🌙"])
@@ -90,7 +90,7 @@ preprocessor = load_preprocessor()
 
 # Sidebar
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV via URL"])
+app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV"])
 
 # ----------------- Manual Input -----------------
 if app_mode == "Manual Input":
@@ -157,6 +157,7 @@ if app_mode == "Manual Input":
         st.info(f"Prediction: {prediction}")
 
 # Bulk CSV
+elif app_mode == "Bulk CSV":
 st.header("Bulk CSV Prediction")
 uploaded_file = st.file_uploader("Upload CSV file for bulk predictions", type="csv")
 
