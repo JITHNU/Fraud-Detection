@@ -157,89 +157,69 @@ if app_mode == "Manual Input":
         st.info(f"Prediction: {prediction}")
 
 # Bulk CSV
-elif app_mode == "Bulk CSV":
-    st.header("Bulk CSV Prediction 📂🧑🏻‍💻")
-    uploaded_file = st.file_uploader(
-        "Upload CSV file (include 'isFraud' if available)",
-        type="csv",
-        key="bulk_file"
-    )
+st.header("Bulk CSV Prediction")
+uploaded_file = st.file_uploader("Upload CSV file for bulk predictions", type="csv")
 
-    if uploaded_file is not None:
-        uploaded_file.seek(0)
-        chunksize = 100000
-        results = []
+if uploaded_file is not None:
+    chunksize = 100000
+    results = []
+    st.subheader("Processing CSV in chunks...")
 
-        #Count chunks
-        num_chunks = sum(1 for _ in pd.read_csv(uploaded_file, chunksize=chunksize))
-        uploaded_file.seek(0)
+    try:
+        for chunk in pd.read_csv(uploaded_file, chunksize=chunksize):
+            # Encode 'type'
+            if 'type' in chunk.columns:
+                df_type = pd.get_dummies(chunk['type'], prefix='type')
+                expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
+                for col in expected_type_cols:
+                    if col not in df_type.columns:
+                        df_type[col] = 0
+                chunk = pd.concat([chunk.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
 
-        st.subheader("Processing CSV...")
-        progress_bar = st.progress(0)
-        current_chunk = 0
+            # Scale numeric columns
+            numeric_cols = preprocessor['scaler'].feature_names_in_
+            chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
 
-        bulk_threshold = st.slider(
-            "Fraud Probability Threshold",
-            0.0, 1.0, 0.5,
-            key="bulk_threshold_slider"
-        )
+            # Feature order for model
+            feature_cols = [
+                'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
+                'oldbalanceDest', 'newbalanceDest',
+                'type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER'
+            ]
+            for col in feature_cols:
+                if col not in chunk.columns:
+                    chunk[col] = 0
+            X = chunk[feature_cols].values.astype(np.float32)
+            X_tensor = torch.tensor(X)
 
-        try:
-            for chunk in pd.read_csv(uploaded_file, chunksize=chunksize):
-                current_chunk += 1
-                progress_bar.progress(current_chunk / num_chunks)
+            # Predict
+            with torch.no_grad():
+                logits = model(X_tensor)
+                probs = torch.sigmoid(logits).numpy()
+            chunk["fraud_probability"] = probs
+            results.append(chunk)
 
-                # Encode type
-                if 'type' in chunk.columns:
-                    df_type = pd.get_dummies(chunk['type'], prefix='type')
-                    expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
-                    for col in expected_type_cols:
-                        if col not in df_type.columns:
-                            df_type[col] = 0
-                    chunk = pd.concat([chunk.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
+        df = pd.concat(results, ignore_index=True)
 
-                # Scale numeric
-                numeric_cols = preprocessor['scaler'].feature_names_in_
-                chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
+        # Threshold slider
+        threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
+        df["predicted_fraud"] = df["fraud_probability"] > threshold
 
-                # Feature order
-                feature_cols = [
-                    'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
-                    'oldbalanceDest', 'newbalanceDest',
-                    'type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER'
-                ]
-                for col in feature_cols:
-                    if col not in chunk.columns:
-                        chunk[col] = 0
-                X = chunk[feature_cols].values.astype(np.float32)
-                X_tensor = torch.tensor(X)
+        st.subheader("Predictions (Top 20 rows)")
+        st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
-                with torch.no_grad():
-                    logits = model(X_tensor)
-                    probs = torch.sigmoid(logits).numpy()
-                chunk["fraud_probability"] = probs
-                chunk["predicted_fraud"] = np.where(chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud")
+        st.subheader("⚠️ High Probability Frauds")
+        st.dataframe(df[df["predicted_fraud"]])
 
-                results.append(chunk)
+        # Histogram
+        st.subheader("Fraud Probability Distribution")
+        fig, ax = plt.subplots()
+        sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
+        ax.set_xlabel("Fraud Probability")
+        ax.set_ylabel("Count")
+        st.pyplot(fig)
 
-            df = pd.concat(results, ignore_index=True)
-            st.success("Bulk predictions completed! ✅")
-
-            st.subheader("Predictions (Top 20 rows)")
-            st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
-
-            st.subheader("High Probability Frauds ⚠️")
-            st.dataframe(df[df["predicted_fraud"]=="Fraud"])
-
-            # Histogram
-            st.subheader("Fraud Probability Distribution 📊")
-            fig, ax = plt.subplots()
-            sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
-            ax.set_xlabel("Fraud Probability")
-            ax.set_ylabel("Count")
-            st.pyplot(fig)
-
-            if 'isFraud' in df.columns:
+        if 'isFraud' in df.columns:
                 y_true = df['isFraud']
                 y_pred = np.where(df['fraud_probability'] > bulk_threshold, 1, 0)
 
@@ -268,16 +248,14 @@ elif app_mode == "Bulk CSV":
                 st.subheader("Classification Report")
                 report = classification_report(y_true, y_pred, output_dict=True)
                 st.json(report)
+        # Download CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Predictions as CSV",
+            data=csv,
+            file_name="fraud_predictions.csv",
+            mime="text/csv"
+        )
 
-            # Download CSV
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download Predictions as CSV",
-                data=csv,
-                file_name="fraud_predictions.csv",
-                mime="text/csv"
-            )
-
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
