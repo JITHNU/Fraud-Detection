@@ -154,33 +154,41 @@ if app_mode == "Manual Input":
         st.info(f"Prediction: {prediction}")
 
 #Bulk CSV
-# Bulk CSV
 elif app_mode == "Bulk CSV":
-    st.header("Bulk CSV Prediction 📂🧑🏻‍💻")
-
-    uploaded_file = st.file_uploader(
-        "Upload CSV file (include 'isFraud' if available)",
-        type="csv",
-        key="bulk_file"
+    st.header("Bulk CSV Prediction 📂🧑🏻‍💻 via URL")
+    
+    # Ask for file link
+    file_url = st.text_input(
+        "Enter CSV URL (Google Drive / Dropbox / S3) (include 'isFraud' if available)",
+        key="bulk_file_url"
     )
 
-    if uploaded_file is not None:
+    if file_url:
         try:
-            # Read file into memory buffer
-            data = uploaded_file.read()
-            s = io.StringIO(data.decode("utf-8"))
+            st.info("Downloading CSV...")
+            import requests
+            import io
 
-            # Count chunks first
+            response = requests.get(file_url, stream=True)
+            response.raise_for_status() 
+            # Read CSV in chunks to handle large files
             chunksize = 50000
-            num_chunks = sum(1 for _ in pd.read_csv(io.StringIO(data.decode("utf-8")), chunksize=chunksize))
+            results = []
+            total_rows = 0
 
-            # Reset StringIO for actual processing
-            s.seek(0)
+            # Wrap response content in BytesIO for pandas
+            csv_file = io.StringIO(response.content.decode("utf-8"))
 
             st.subheader("Processing CSV...")
             progress_bar = st.progress(0)
+
+            # Count total rows (optional, for progress bar)
+            for chunk in pd.read_csv(csv_file, chunksize=chunksize):
+                total_rows += len(chunk)
+            csv_file.seek(0)
+
+            # Reset progress
             current_chunk = 0
-            results = []
 
             bulk_threshold = st.slider(
                 "Fraud Probability Threshold",
@@ -188,11 +196,12 @@ elif app_mode == "Bulk CSV":
                 key="bulk_threshold_slider"
             )
 
-            for chunk in pd.read_csv(s, chunksize=chunksize):
+            # Process in chunks
+            for chunk in pd.read_csv(csv_file, chunksize=chunksize):
                 current_chunk += 1
-                progress_bar.progress(current_chunk / num_chunks)
+                progress_bar.progress(current_chunk / (total_rows / chunksize))
 
-                # Encode type column
+                # Encode type
                 if 'type' in chunk.columns:
                     df_type = pd.get_dummies(chunk['type'], prefix='type')
                     expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
@@ -205,7 +214,7 @@ elif app_mode == "Bulk CSV":
                 numeric_cols = preprocessor['scaler'].feature_names_in_
                 chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
 
-                # Ensure feature order
+                # Feature order
                 feature_cols = [
                     'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
                     'oldbalanceDest', 'newbalanceDest',
@@ -214,32 +223,27 @@ elif app_mode == "Bulk CSV":
                 for col in feature_cols:
                     if col not in chunk.columns:
                         chunk[col] = 0
-
                 X = chunk[feature_cols].values.astype(np.float32)
                 X_tensor = torch.tensor(X)
 
                 with torch.no_grad():
                     logits = model(X_tensor)
                     probs = torch.sigmoid(logits).numpy()
-
                 chunk["fraud_probability"] = probs
-                chunk["predicted_fraud"] = np.where(
-                    chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud"
-                )
+                chunk["predicted_fraud"] = np.where(chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud")
+
                 results.append(chunk)
 
             df = pd.concat(results, ignore_index=True)
             st.success("Bulk predictions completed! ✅")
 
-            # Show first results
             st.subheader("Predictions (Top 20 rows)")
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
-            # Fraud-only rows
             st.subheader("High Probability Frauds ⚠️")
-            st.dataframe(df[df["predicted_fraud"]=="Fraud"].head(50))
+            st.dataframe(df[df["predicted_fraud"]=="Fraud"])
 
-            # Distribution
+            # Histogram
             st.subheader("Fraud Probability Distribution 📊")
             fig, ax = plt.subplots()
             sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
@@ -247,11 +251,11 @@ elif app_mode == "Bulk CSV":
             ax.set_ylabel("Count")
             st.pyplot(fig)
 
-            # Confusion matrix if labels available
             if 'isFraud' in df.columns:
                 y_true = df['isFraud']
                 y_pred = np.where(df['fraud_probability'] > bulk_threshold, 1, 0)
 
+                # Confusion matrix
                 cm = confusion_matrix(y_true, y_pred)
                 st.subheader("Confusion Matrix")
                 fig, ax = plt.subplots()
@@ -260,17 +264,21 @@ elif app_mode == "Bulk CSV":
                 ax.set_ylabel("Actual")
                 st.pyplot(fig)
 
+                # ROC
                 fpr, tpr, _ = roc_curve(y_true, df['fraud_probability'])
                 roc_auc = auc(fpr, tpr)
                 st.subheader(f"ROC Curve (AUC = {roc_auc:.4f})")
                 fig, ax = plt.subplots()
                 ax.plot(fpr, tpr, color='darkorange', lw=2, label=f'AUC = {roc_auc:.4f}')
                 ax.plot([0,1],[0,1], color='navy', lw=2, linestyle='--')
+                ax.set_xlabel("False Positive Rate")
+                ax.set_ylabel("True Positive Rate")
                 ax.legend(loc="lower right")
                 st.pyplot(fig)
 
-                report = classification_report(y_true, y_pred, output_dict=True)
+                # Classification report
                 st.subheader("Classification Report")
+                report = classification_report(y_true, y_pred, output_dict=True)
                 st.json(report)
 
             # Download CSV
