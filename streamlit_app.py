@@ -154,6 +154,7 @@ if app_mode == "Manual Input":
         st.info(f"Prediction: {prediction}")
 
 #Bulk CSV
+# Bulk CSV
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction 📂🧑🏻‍💻")
     uploaded_file = st.file_uploader(
@@ -163,30 +164,34 @@ elif app_mode == "Bulk CSV":
     )
 
     if uploaded_file is not None:
-        uploaded_file.seek(0)
-        chunksize = 100000
-        results = []
-
-        #Count chunks
-        num_chunks = sum(1 for _ in pd.read_csv(uploaded_file, chunksize=chunksize))
-        uploaded_file.seek(0)
-
-        st.subheader("Processing CSV...")
-        progress_bar = st.progress(0)
-        current_chunk = 0
-
-        bulk_threshold = st.slider(
-            "Fraud Probability Threshold",
-            0.0, 1.0, 0.5,
-            key="bulk_threshold_slider"
-        )
-
         try:
-            for chunk in pd.read_csv(uploaded_file, chunksize=chunksize):
+            from io import BytesIO
+
+            # Save uploaded file to memory buffer (resettable)
+            file_buffer = BytesIO(uploaded_file.read())
+
+            chunksize = 50000
+            results = []
+
+            # Count chunks (safe way)
+            num_chunks = sum(1 for _ in pd.read_csv(BytesIO(file_buffer.getvalue()), chunksize=chunksize))
+            file_buffer.seek(0)
+
+            st.subheader("Processing CSV...")
+            progress_bar = st.progress(0)
+            current_chunk = 0
+
+            bulk_threshold = st.slider(
+                "Fraud Probability Threshold",
+                0.0, 1.0, 0.5,
+                key="bulk_threshold_slider"
+            )
+
+            for chunk in pd.read_csv(file_buffer, chunksize=chunksize):
                 current_chunk += 1
                 progress_bar.progress(current_chunk / num_chunks)
 
-                # Encode type
+                # One-hot encode 'type'
                 if 'type' in chunk.columns:
                     df_type = pd.get_dummies(chunk['type'], prefix='type')
                     expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
@@ -195,11 +200,14 @@ elif app_mode == "Bulk CSV":
                             df_type[col] = 0
                     chunk = pd.concat([chunk.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
 
-                # Scale numeric
-                numeric_cols = preprocessor['scaler'].feature_names_in_
+                # Scale numeric safely
+                numeric_cols = list(preprocessor['scaler'].feature_names_in_)
+                for col in numeric_cols:
+                    if col not in chunk.columns:
+                        chunk[col] = 0.0
                 chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
 
-                # Feature order
+                # Final feature order
                 feature_cols = [
                     'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
                     'oldbalanceDest', 'newbalanceDest',
@@ -214,9 +222,9 @@ elif app_mode == "Bulk CSV":
                 with torch.no_grad():
                     logits = model(X_tensor)
                     probs = torch.sigmoid(logits).numpy()
+
                 chunk["fraud_probability"] = probs
                 chunk["predicted_fraud"] = np.where(chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud")
-
                 results.append(chunk)
 
             df = pd.concat(results, ignore_index=True)
@@ -226,7 +234,7 @@ elif app_mode == "Bulk CSV":
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
             st.subheader("High Probability Frauds ⚠️")
-            st.dataframe(df[df["predicted_fraud"]=="Fraud"])
+            st.dataframe(df[df["predicted_fraud"] == "Fraud"])
 
             # Histogram
             st.subheader("Fraud Probability Distribution 📊")
@@ -236,11 +244,12 @@ elif app_mode == "Bulk CSV":
             ax.set_ylabel("Count")
             st.pyplot(fig)
 
+            # Evaluation if labels exist
             if 'isFraud' in df.columns:
                 y_true = df['isFraud']
                 y_pred = np.where(df['fraud_probability'] > bulk_threshold, 1, 0)
 
-                # Confusion matrix
+                # Confusion Matrix
                 cm = confusion_matrix(y_true, y_pred)
                 st.subheader("Confusion Matrix")
                 fig, ax = plt.subplots()
@@ -255,13 +264,13 @@ elif app_mode == "Bulk CSV":
                 st.subheader(f"ROC Curve (AUC = {roc_auc:.4f})")
                 fig, ax = plt.subplots()
                 ax.plot(fpr, tpr, color='darkorange', lw=2, label=f'AUC = {roc_auc:.4f}')
-                ax.plot([0,1],[0,1], color='navy', lw=2, linestyle='--')
+                ax.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
                 ax.set_xlabel("False Positive Rate")
                 ax.set_ylabel("True Positive Rate")
                 ax.legend(loc="lower right")
                 st.pyplot(fig)
 
-                # Classification report
+                # Classification Report
                 st.subheader("Classification Report")
                 report = classification_report(y_true, y_pred, output_dict=True)
                 st.json(report)
@@ -276,5 +285,4 @@ elif app_mode == "Bulk CSV":
             )
 
         except Exception as e:
-            st.error(f"Error processing file: {e}")
-
+            st.error(f"Error processing file: {str(e)}")
