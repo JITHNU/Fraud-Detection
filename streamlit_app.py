@@ -10,9 +10,14 @@ import pickle
 import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 from src.model import GraphSAGE
+import os
 
+os.makedirs("artifacts", exist_ok=True)
 
-PREPROCESS_URL = "https://drive.google.com/file/d/1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg/view?usp=drive_link"
+# URLs
+PREPROCESS_URL = "https://drive.google.com/uc?id=1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg"
+MODEL_PATH = "artifacts/model.pt"
+PREPROCESS_PATH = "artifacts/preprocess.pkl"
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -63,8 +68,10 @@ else:
 #Load model
 @st.cache_resource
 def load_model():
+    if not os.path.exists(MODEL_PATH):
+        st.error("Model file not found! Upload to GitHub or external storage.")
     model = GraphSAGE(in_channels=11, hidden_channels=64)
-    model.load_state_dict(torch.load("artifacts/model.pt", map_location="cpu"))
+    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
     model.eval()
     return model
 
@@ -72,6 +79,7 @@ def load_model():
 @st.cache_resource
 def load_preprocessor():
     if not os.path.exists(PREPROCESS_PATH):
+        st.info("Downloading preprocessor...")
         gdown.download(PREPROCESS_URL, PREPROCESS_PATH, quiet=False)
     with open(PREPROCESS_PATH, "rb") as f:
         return pickle.load(f)
