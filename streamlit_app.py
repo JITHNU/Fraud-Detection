@@ -158,7 +158,7 @@ if app_mode == "Manual Input":
 
 # Bulk CSV
 elif app_mode == "Bulk CSV":
-    st.header("Bulk CSV Prediction 📂🧑🏻‍💻")
+    st.header("📂 Bulk CSV Prediction")
     uploaded_file = st.file_uploader(
         "Upload CSV file (include 'isFraud' if available)",
         type="csv",
@@ -170,7 +170,7 @@ elif app_mode == "Bulk CSV":
         chunksize = 100000
         results = []
 
-        #Count chunks
+        # Count chunks
         num_chunks = sum(1 for _ in pd.read_csv(uploaded_file, chunksize=chunksize))
         uploaded_file.seek(0)
 
@@ -223,16 +223,16 @@ elif app_mode == "Bulk CSV":
                 results.append(chunk)
 
             df = pd.concat(results, ignore_index=True)
-            st.success("Bulk predictions completed! ✅")
+            st.success("✅ Bulk predictions completed!")
 
             st.subheader("Predictions (Top 20 rows)")
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
 
-            st.subheader("High Probability Frauds ⚠️")
+            st.subheader("⚠️ High Probability Frauds")
             st.dataframe(df[df["predicted_fraud"]=="Fraud"])
 
             # Histogram
-            st.subheader("Fraud Probability Distribution 📊")
+            st.subheader("Fraud Probability Distribution")
             fig, ax = plt.subplots()
             sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
             ax.set_xlabel("Fraud Probability")
