@@ -1,10 +1,5 @@
 import sys
-import os
-import io
-import re
-import requests
 from pathlib import Path
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,6 +10,9 @@ import pickle
 import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 from model import GraphSAGE
+import os
+import io
+import requests
 
 # Ensure artifacts folder exists
 os.makedirs("artifacts", exist_ok=True)
@@ -24,33 +22,45 @@ PREPROCESS_URL = "https://drive.google.com/uc?id=1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0K
 MODEL_PATH = "model.pt"
 PREPROCESS_PATH = "artifacts/preprocess.pkl"
 
-# Streamlit page config
-st.set_page_config(page_title="Fraud Detection", page_icon="💳", layout="wide")
+st.set_page_config(
+    page_title="Fraud Detection",
+    page_icon="💳",
+    layout="wide"
+)
 st.config.set_option('server.maxUploadSize', 1024)  # 1GB
 
-# Theme selection
+# Theme
 theme = st.sidebar.radio("Choose Theme", ["Light 🌞", "Dark 🌙"])
 if theme == "Dark 🌙":
-    st.markdown("""
+    st.markdown(
+        """
         <style>
             body, .stApp { background-color: black !important; color: white !important; }
             .stTextInput, .stButton > button { background-color: #222; color: white !important; }
-            .stSelectbox label, .stSelectbox div[data-baseweb="select"] { background-color: #222 !important; color: white !important; }
         </style>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True
+    )
 else:
-    st.markdown("""
+    st.markdown(
+        """
         <style>
             body, .stApp { background-color: white !important; color: black !important; }
-            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button { background-color: #f9f9f9 !important; color: black !important; }
+            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {
+                background-color: #f9f9f9 !important;
+                color: black !important;
+            }
         </style>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True
+    )
 
 # Load model
 @st.cache_resource
 def load_model():
     if not os.path.exists(MODEL_PATH):
-        st.error("Model file not found! Upload to GitHub or external storage.")
+        st.error("Model file not found! Please upload model.pt to your repo or storage.")
+        st.stop()
     model = GraphSAGE(in_channels=11, hidden_channels=64)
     model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
     model.eval()
@@ -68,32 +78,28 @@ def load_preprocessor():
 model = load_model()
 preprocessor = load_preprocessor()
 
-# Sidebar navigation
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV"])
 
-# ------------------------------
-# Manual Input
-# ------------------------------
+# ================= Manual Input =================
 if app_mode == "Manual Input":
     st.header("Manual Input Prediction ✍🏻")
-    st.markdown("Enter transaction details below:")
-
     with st.form(key="manual_form"):
-        payment_type = st.selectbox("Payment Type", ["CASH_IN","CASH_OUT","DEBIT","PAYMENT","TRANSFER"], key="manual_payment_type")
-        step = st.number_input("Step", min_value=0, step=1, key="manual_step")
-        amount = st.number_input("Amount", min_value=0.0, step=0.01, key="manual_amount")
-        oldbalanceOrg = st.number_input("Old Balance (Sender)", min_value=0.0, step=0.01, key="manual_oldbalanceOrg")
-        newbalanceOrig = st.number_input("New Balance (Sender)", min_value=0.0, step=0.01, key="manual_newbalanceOrig")
-        oldbalanceDest = st.number_input("Old Balance (Receiver)", min_value=0.0, step=0.01, key="manual_oldbalanceDest")
-        newbalanceDest = st.number_input("New Balance (Receiver)", min_value=0.0, step=0.01, key="manual_newbalanceDest")
-        manual_threshold = st.slider("Fraud Probability Threshold", 0.0,1.0,0.5, key="manual_threshold_slider")
+        payment_type = st.selectbox("Payment Type", ["CASH_IN", "CASH_OUT", "DEBIT", "PAYMENT", "TRANSFER"])
+        step = st.number_input("Step", min_value=0, step=1)
+        amount = st.number_input("Amount", min_value=0.0, step=0.01)
+        oldbalanceOrg = st.number_input("Old Balance (Sender)", min_value=0.0, step=0.01)
+        newbalanceOrig = st.number_input("New Balance (Sender)", min_value=0.0, step=0.01)
+        oldbalanceDest = st.number_input("Old Balance (Receiver)", min_value=0.0, step=0.01)
+        newbalanceDest = st.number_input("New Balance (Receiver)", min_value=0.0, step=0.01)
+        manual_threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
         submit_manual = st.form_submit_button("Predict")
 
     if submit_manual:
         df = pd.DataFrame([{
-            "step": step, "amount": amount, "oldbalanceOrg": oldbalanceOrg, "newbalanceOrig": newbalanceOrig,
-            "oldbalanceDest": oldbalanceDest, "newbalanceDest": newbalanceDest, "type": payment_type
+            "step": step, "amount": amount, "oldbalanceOrg": oldbalanceOrg,
+            "newbalanceOrig": newbalanceOrig, "oldbalanceDest": oldbalanceDest,
+            "newbalanceDest": newbalanceDest, "type": payment_type
         }])
 
         # Encode type
@@ -105,43 +111,36 @@ if app_mode == "Manual Input":
         df = pd.concat([df.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
 
         # Scale numeric
-        numeric_cols = preprocessor['scaler'].feature_names_in_
+        numeric_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
         df[numeric_cols] = preprocessor['scaler'].transform(df[numeric_cols])
 
         # Feature order
-        feature_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
-                        'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
+        feature_cols = expected_type_cols + numeric_cols
         X = df[feature_cols].values.astype(np.float32)
         X_tensor = torch.tensor(X)
 
         with torch.no_grad():
             logits = model(X_tensor)
             prob = torch.sigmoid(logits).item()
-
         prediction = "Fraud" if prob > manual_threshold else "Not Fraud"
         st.success(f"Predicted Fraud Probability: {prob:.4f}")
         st.info(f"Prediction: {prediction}")
 
-# ------------------------------
-# Bulk CSV via URL
-# ------------------------------
+# ================= Bulk CSV =================
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction 📂🧑🏻‍💻 via URL")
-
     with st.form(key="bulk_form"):
-        file_url = st.text_input("Enter CSV URL (Google Drive / Dropbox / S3) including 'isFraud' if available", key="bulk_file_url")
-        bulk_threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5, key="bulk_threshold_slider")
+        file_url = st.text_input("Enter CSV URL (Google Drive / Dropbox / S3)")
+        bulk_threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
         submit_bulk = st.form_submit_button("Process CSV")
 
     if submit_bulk and file_url:
         try:
             st.info("Downloading CSV...")
-
-            # Convert Google Drive share link to direct download
-            drive_match = re.search(r'drive.google.com.*?/d/([a-zA-Z0-9_-]+)', file_url)
-            if drive_match:
-                file_id = drive_match.group(1)
-                file_url = f"https://drive.google.com/uc?id={file_id}&export=download"
+            if "drive.google.com" in file_url:
+                # Convert Google Drive sharing URL to direct download
+                file_id = file_url.split("/d/")[1].split("/")[0]
+                file_url = f"https://drive.google.com/uc?id={file_id}"
 
             response = requests.get(file_url)
             response.raise_for_status()
@@ -149,16 +148,15 @@ elif app_mode == "Bulk CSV":
 
             chunksize = 50000
             results = []
-
-            # Count total chunks
-            total_chunks = sum(1 for _ in pd.read_csv(csv_file, chunksize=chunksize))
+            total_rows = sum(1 for _ in pd.read_csv(csv_file, chunksize=chunksize))
             csv_file.seek(0)
+            st.subheader("Processing CSV...")
             progress_bar = st.progress(0)
-            current_chunk = 0
+            processed_chunks = 0
 
             for chunk in pd.read_csv(csv_file, chunksize=chunksize):
-                current_chunk += 1
-                progress_bar.progress(current_chunk / total_chunks)
+                processed_chunks += 1
+                progress_bar.progress(processed_chunks / total_rows)
 
                 # Encode type
                 if 'type' in chunk.columns:
@@ -168,14 +166,21 @@ elif app_mode == "Bulk CSV":
                         if col not in df_type.columns:
                             df_type[col] = 0
                     chunk = pd.concat([chunk.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
+                else:
+                    for col in expected_type_cols:
+                        chunk[col] = 0
 
-                # Scale numeric
-                numeric_cols = preprocessor['scaler'].feature_names_in_
-                chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
+                # Scale numeric safely
+                numeric_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
+                numeric_cols_present = [col for col in numeric_cols if col in chunk.columns]
+                if numeric_cols_present:
+                    chunk[numeric_cols_present] = preprocessor['scaler'].transform(chunk[numeric_cols_present])
+                else:
+                    st.warning("Chunk missing numeric columns, skipping.")
+                    continue
 
                 # Feature order
-                feature_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
-                                'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
+                feature_cols = numeric_cols + expected_type_cols
                 for col in feature_cols:
                     if col not in chunk.columns:
                         chunk[col] = 0
@@ -187,13 +192,25 @@ elif app_mode == "Bulk CSV":
                     probs = torch.sigmoid(logits).numpy()
                 chunk["fraud_probability"] = probs
                 chunk["predicted_fraud"] = np.where(chunk["fraud_probability"] > bulk_threshold, "Fraud", "Not Fraud")
-
                 results.append(chunk)
 
-            df = pd.concat(results, ignore_index=True)
-            st.success("Bulk predictions completed! ✅")
-            st.subheader("Top 20 Predictions")
-            st.dataframe(df[["fraud_probability","predicted_fraud"]].head(20))
+            if results:
+                df = pd.concat(results, ignore_index=True)
+                st.success("Bulk predictions completed! ✅")
+                st.dataframe(df[["fraud_probability","predicted_fraud"]].head(20))
+
+                # Histogram
+                fig, ax = plt.subplots()
+                sns.histplot(df["fraud_probability"], bins=50, kde=True, ax=ax)
+                ax.set_xlabel("Fraud Probability")
+                ax.set_ylabel("Count")
+                st.pyplot(fig)
+
+                # Download CSV
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button("Download Predictions as CSV", data=csv, file_name="fraud_predictions.csv", mime="text/csv")
+            else:
+                st.warning("No valid data processed.")
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
