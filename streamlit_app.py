@@ -11,6 +11,8 @@ import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 from model import GraphSAGE
 import os
+import io
+import requests
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 os.makedirs("artifacts", exist_ok=True)
@@ -27,6 +29,7 @@ st.set_page_config(
 )
 st.config.set_option('server.maxUploadSize', 1024)  # 1GB
 
+# Theme
 theme = st.sidebar.radio("Choose Theme", ["Light 🌞", "Dark 🌙"])
 if theme == "Dark 🌙":
     st.markdown(
@@ -47,24 +50,16 @@ else:
         """
         <style>
         body, .stApp { background-color: white !important; color: black !important; }
-            .reportview-container, .main, .sidebar .sidebar-content {
-                background-color: #ffffff !important;
-                color: black !important;
-            }
-            .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {
-                background-color: #f9f9f9 !important;
-                color: black !important;
-            }
-            label, .css-10trblm, .css-1offfwp, .stSelectbox label {
-                color: black !important;
-            }
+        .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button {
+            background-color: #f9f9f9 !important;
+            color: black !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-
-#Load model
+# Load model
 @st.cache_resource
 def load_model():
     if not os.path.exists(MODEL_PATH):
@@ -74,7 +69,7 @@ def load_model():
     model.eval()
     return model
 
-#Load preprocessor
+# Load preprocessor
 @st.cache_resource
 def load_preprocessor():
     if not os.path.exists(PREPROCESS_PATH):
@@ -86,10 +81,11 @@ def load_preprocessor():
 model = load_model()
 preprocessor = load_preprocessor()
 
+# Sidebar
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV"])
+app_mode = st.sidebar.radio("Choose Action", ["Manual Input", "Bulk CSV via URL"])
 
-#Manual Input
+# ----------------- Manual Input -----------------
 if app_mode == "Manual Input":
     st.header(" Manual Input Prediction ✍🏻 ")
     st.markdown("Enter transaction details below:")
@@ -124,23 +120,23 @@ if app_mode == "Manual Input":
             "type": payment_type
         }])
 
-        #Encode type
+        # Encode type
         df_type = pd.get_dummies(df['type'], prefix='type')
-        expected_type_cols = ['type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER']
+        expected_type_cols = ['type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
         for col in expected_type_cols:
             if col not in df_type.columns:
                 df_type[col] = 0
         df = pd.concat([df.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
 
-        #Scale numeric
+        # Scale numeric
         numeric_cols = preprocessor['scaler'].feature_names_in_
         df[numeric_cols] = preprocessor['scaler'].transform(df[numeric_cols])
 
-        #Feature order
+        # Feature order
         feature_cols = [
-            'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
-            'oldbalanceDest', 'newbalanceDest',
-            'type_CASH_IN', 'type_CASH_OUT', 'type_DEBIT', 'type_PAYMENT', 'type_TRANSFER'
+            'step','amount','oldbalanceOrg','newbalanceOrig',
+            'oldbalanceDest','newbalanceDest',
+            'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER'
         ]
         X = df[feature_cols].values.astype(np.float32)
         X_tensor = torch.tensor(X)
@@ -153,9 +149,9 @@ if app_mode == "Manual Input":
         st.success(f"Predicted Fraud Probability: {prob:.4f}")
         st.info(f"Prediction: {prediction}")
 
-#Bulk CSV
-elif app_mode == "Bulk CSV":
-    st.header("Bulk CSV Prediction 📂🧑🏻‍💻 via URL")
+# ----------------- Bulk CSV via URL -----------------
+elif app_mode == "Bulk CSV via URL":
+    st.header("Bulk CSV Prediction via URL 🌐")
     
     with st.form(key="bulk_form"):
         file_url = st.text_input(
@@ -172,29 +168,31 @@ elif app_mode == "Bulk CSV":
     if submit_bulk and file_url:
         try:
             st.info("Downloading CSV...")
-            import requests, io
-
+            
+            # Convert Google Drive link to direct download if needed
+            if "drive.google.com" in file_url:
+                import re
+                file_id = re.search(r'/d/([a-zA-Z0-9_-]+)', file_url)
+                if file_id:
+                    file_url = f"https://drive.google.com/uc?export=download&id={file_id.group(1)}"
+            
             response = requests.get(file_url, stream=True)
             response.raise_for_status()
             csv_file = io.StringIO(response.content.decode("utf-8"))
 
             chunksize = 50000
             results = []
-            total_rows = 0
 
-            # Count total rows for progress bar
-            for chunk in pd.read_csv(csv_file, chunksize=chunksize):
-                total_rows += len(chunk)
+            # Count total rows for progress
+            total_rows = sum(1 for _ in pd.read_csv(csv_file, chunksize=chunksize))
             csv_file.seek(0)
-
-            st.subheader("Processing CSV...")
             progress_bar = st.progress(0)
             current_chunk = 0
 
-            # Process in chunks
+            # Process chunks
             for chunk in pd.read_csv(csv_file, chunksize=chunksize):
                 current_chunk += 1
-                progress_bar.progress(current_chunk / (total_rows / chunksize))
+                progress_bar.progress(current_chunk / total_rows * chunksize)
 
                 # Encode type
                 if 'type' in chunk.columns:
@@ -211,8 +209,8 @@ elif app_mode == "Bulk CSV":
 
                 # Feature order
                 feature_cols = [
-                    'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
-                    'oldbalanceDest', 'newbalanceDest',
+                    'step','amount','oldbalanceOrg','newbalanceOrig',
+                    'oldbalanceDest','newbalanceDest',
                     'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER'
                 ]
                 for col in feature_cols:
