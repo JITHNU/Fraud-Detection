@@ -129,6 +129,8 @@ if app_mode == "Manual Input":
 # ================= Bulk CSV =================
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction 📂🧑🏻‍💻 via URL")
+    expected_type_cols = ['type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']  # define here
+
     with st.form(key="bulk_form"):
         file_url = st.text_input("Enter CSV URL (Google Drive / Dropbox / S3)")
         bulk_threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
@@ -138,7 +140,6 @@ elif app_mode == "Bulk CSV":
         try:
             st.info("Downloading CSV...")
             if "drive.google.com" in file_url:
-                # Convert Google Drive sharing URL to direct download
                 file_id = file_url.split("/d/")[1].split("/")[0]
                 file_url = f"https://drive.google.com/uc?id={file_id}"
 
@@ -150,6 +151,7 @@ elif app_mode == "Bulk CSV":
             results = []
             total_rows = sum(1 for _ in pd.read_csv(csv_file, chunksize=chunksize))
             csv_file.seek(0)
+
             st.subheader("Processing CSV...")
             progress_bar = st.progress(0)
             processed_chunks = 0
@@ -158,10 +160,9 @@ elif app_mode == "Bulk CSV":
                 processed_chunks += 1
                 progress_bar.progress(processed_chunks / total_rows)
 
-                # Encode type
+                # Encode type safely
                 if 'type' in chunk.columns:
                     df_type = pd.get_dummies(chunk['type'], prefix='type')
-                    expected_type_cols = ['type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
                     for col in expected_type_cols:
                         if col not in df_type.columns:
                             df_type[col] = 0
@@ -169,6 +170,7 @@ elif app_mode == "Bulk CSV":
                 else:
                     for col in expected_type_cols:
                         chunk[col] = 0
+
 
                 # Scale numeric safely
                 numeric_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
