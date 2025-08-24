@@ -1,5 +1,10 @@
 import sys
+import os
+import io
+import re
+import requests
 from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,10 +15,6 @@ import pickle
 import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
 from model import GraphSAGE
-import os
-import io
-import requests
-import re
 
 # Ensure artifacts folder exists
 os.makedirs("artifacts", exist_ok=True)
@@ -24,36 +25,26 @@ MODEL_PATH = "model.pt"
 PREPROCESS_PATH = "artifacts/preprocess.pkl"
 
 # Streamlit page config
-st.set_page_config(
-    page_title="Fraud Detection",
-    page_icon="💳",
-    layout="wide"
-)
+st.set_page_config(page_title="Fraud Detection", page_icon="💳", layout="wide")
 st.config.set_option('server.maxUploadSize', 1024)  # 1GB
 
 # Theme selection
 theme = st.sidebar.radio("Choose Theme", ["Light 🌞", "Dark 🌙"])
 if theme == "Dark 🌙":
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             body, .stApp { background-color: black !important; color: white !important; }
             .stTextInput, .stButton > button { background-color: #222; color: white !important; }
             .stSelectbox label, .stSelectbox div[data-baseweb="select"] { background-color: #222 !important; color: white !important; }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 else:
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             body, .stApp { background-color: white !important; color: black !important; }
             .stTextInput, .stNumberInput, .stSelectbox, .stSlider, .stButton > button { background-color: #f9f9f9 !important; color: black !important; }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
 # Load model
 @st.cache_resource
@@ -118,10 +109,8 @@ if app_mode == "Manual Input":
         df[numeric_cols] = preprocessor['scaler'].transform(df[numeric_cols])
 
         # Feature order
-        feature_cols = [
-            'step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
-            'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER'
-        ]
+        feature_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
+                        'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
         X = df[feature_cols].values.astype(np.float32)
         X_tensor = torch.tensor(X)
 
@@ -152,7 +141,7 @@ elif app_mode == "Bulk CSV":
             drive_match = re.search(r'drive.google.com.*?/d/([a-zA-Z0-9_-]+)', file_url)
             if drive_match:
                 file_id = drive_match.group(1)
-                file_url = f"https://drive.google.com/uc?id={file_id}"
+                file_url = f"https://drive.google.com/uc?id={file_id}&export=download"
 
             response = requests.get(file_url)
             response.raise_for_status()
@@ -185,10 +174,8 @@ elif app_mode == "Bulk CSV":
                 chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
 
                 # Feature order
-                feature_cols = [
-                    'step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
-                    'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER'
-                ]
+                feature_cols = ['step','amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest',
+                                'type_CASH_IN','type_CASH_OUT','type_DEBIT','type_PAYMENT','type_TRANSFER']
                 for col in feature_cols:
                     if col not in chunk.columns:
                         chunk[col] = 0
@@ -205,4 +192,8 @@ elif app_mode == "Bulk CSV":
 
             df = pd.concat(results, ignore_index=True)
             st.success("Bulk predictions completed! ✅")
-            st.data
+            st.subheader("Top 20 Predictions")
+            st.dataframe(df[["fraud_probability","predicted_fraud"]].head(20))
+
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
