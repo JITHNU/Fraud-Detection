@@ -204,13 +204,13 @@ if uploaded_file is not None:
         # Threshold slider
         threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
         df["predicted_fraud"] = np.where(df["fraud_probability"] > threshold, "Fraud", "Not Fraud")
-        
+
         st.subheader("Predictions (Top 20 rows)")
         st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
-        
+
         st.subheader("⚠️ High Probability Frauds")
         st.dataframe(df[df["predicted_fraud"]=="Fraud"])
-        
+
         # Histogram
         st.subheader("Fraud Probability Distribution")
         fig, ax = plt.subplots()
@@ -218,12 +218,12 @@ if uploaded_file is not None:
         ax.set_xlabel("Fraud Probability")
         ax.set_ylabel("Count")
         st.pyplot(fig)
-        
+
         # Only if 'isFraud' column exists
         if 'isFraud' in df.columns:
             y_true = df['isFraud']
-            y_pred = np.where(df['fraud_probability'] > threshold, 1, 0)  # use 'threshold' here
-        
+            y_pred = np.where(df['fraud_probability'] > threshold, 1, 0)
+
             # Confusion matrix
             cm = confusion_matrix(y_true, y_pred)
             st.subheader("Confusion Matrix")
@@ -232,7 +232,7 @@ if uploaded_file is not None:
             ax.set_xlabel("Predicted")
             ax.set_ylabel("Actual")
             st.pyplot(fig)
-        
+
             # ROC curve
             fpr, tpr, _ = roc_curve(y_true, df['fraud_probability'])
             roc_auc = auc(fpr, tpr)
@@ -244,20 +244,20 @@ if uploaded_file is not None:
             ax.set_ylabel("True Positive Rate")
             ax.legend(loc="lower right")
             st.pyplot(fig)
-        
+
             # Classification report
             st.subheader("Classification Report")
             report = classification_report(y_true, y_pred, output_dict=True)
             st.json(report)
-        
-                # Download CSV
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Predictions as CSV",
-                    data=csv,
-                    file_name="fraud_predictions.csv",
-                    mime="text/csv"
-                )
+
+        # Download CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Predictions as CSV",
+            data=csv,
+            file_name="fraud_predictions.csv",
+            mime="text/csv"
+        )
 
     except Exception as e:
         st.error(f"Error processing file: {e}")
