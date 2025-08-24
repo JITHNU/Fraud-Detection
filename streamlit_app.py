@@ -219,6 +219,17 @@ elif app_mode == "Bulk CSV":
             ax.set_xlabel("Fraud Probability")
             ax.set_ylabel("Count")
             st.pyplot(fig)
+            
+            #button for histogram
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png")
+            buf.seek(0)
+            st.download_button(
+                label="Download Histogram as PNG",
+                data=buf,
+                file_name="fraud_probability_histogram.png",
+                mime="image/png"
+            )
     
             # Only if 'isFraud' column exists
             if 'isFraud' in df.columns:
@@ -245,6 +256,16 @@ elif app_mode == "Bulk CSV":
                 ax.set_ylabel("True Positive Rate")
                 ax.legend(loc="lower right")
                 st.pyplot(fig)
+
+                buf_roc = io.BytesIO()
+                fig.savefig(buf_roc, format="png")
+                buf_roc.seek(0)
+                st.download_button(
+                    label="Download ROC Curve as PNG",
+                    data=buf_roc,
+                    file_name="roc_curve.png",
+                    mime="image/png"
+                )
     
                 # Classification report
                 st.subheader("Classification Report")
