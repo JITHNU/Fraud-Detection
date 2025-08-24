@@ -9,17 +9,16 @@ import seaborn as sns
 import pickle
 import gdown
 from sklearn.metrics import confusion_matrix, roc_curve, auc, classification_report
-from src.model import GraphSAGE
+from model import GraphSAGE
 import os
 
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 os.makedirs("artifacts", exist_ok=True)
 
 # URLs
 PREPROCESS_URL = "https://drive.google.com/uc?id=1Uds7ZTU_8NBCHzE2bMGUKovBLIxX0KRg"
 MODEL_PATH = "artifacts/model.pt"
 PREPROCESS_PATH = "artifacts/preprocess.pkl"
-
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 st.set_page_config(
     page_title="Fraud Detection",
