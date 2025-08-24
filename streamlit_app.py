@@ -244,6 +244,16 @@ elif app_mode == "Bulk CSV":
                 ax.set_xlabel("Predicted")
                 ax.set_ylabel("Actual")
                 st.pyplot(fig)
+
+                buf_rconf = io.BytesIO()
+                fig.savefig(buf_rconf, format="png")
+                buf_rconf.seek(0)
+                st.download_button(
+                    label="Download Confusion matrix as PNG",
+                    data=buf_rconf,
+                    file_name="Conf_Matrix.png",
+                    mime="image/png"
+                )
     
                 # ROC curve
                 fpr, tpr, _ = roc_curve(y_true, df['fraud_probability'])
