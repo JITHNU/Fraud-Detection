@@ -61,6 +61,9 @@ else:
             label, .css-10trblm, .css-1offfwp, .stSelectbox label {
                 color: black !important;
             }
+            .stAlert > div {
+                color: black !important;   /* Make text black */
+            }
         </style>
         """,
         unsafe_allow_html=True
