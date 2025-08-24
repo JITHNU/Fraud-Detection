@@ -159,14 +159,21 @@ if app_mode == "Manual Input":
 # Bulk CSV
 elif app_mode == "Bulk CSV":
     st.header("Bulk CSV Prediction")
-    uploaded_file = st.file_uploader("Upload CSV file (Only include 'isFraud' will generate curves)", type="csv")
+    uploaded_file = st.file_uploader("Upload CSV file (Including 'isFraud' will generate curves)", type="csv")
     
     if uploaded_file is not None:
         chunksize = 100000
         results = []
         st.subheader("Processing CSV in chunks...")
-    
+
         try:
+            # First count rows to estimate progress
+            total_rows = sum(1 for _ in open(uploaded_file)) - 1  # exclude header
+            uploaded_file.seek(0)  # reset file pointer
+
+            progress_bar = st.progress(0)
+            processed_rows = 0
+
             for chunk in pd.read_csv(uploaded_file, chunksize=chunksize):
                 # Encode 'type'
                 if 'type' in chunk.columns:
@@ -176,11 +183,11 @@ elif app_mode == "Bulk CSV":
                         if col not in df_type.columns:
                             df_type[col] = 0
                     chunk = pd.concat([chunk.drop('type', axis=1), df_type[expected_type_cols]], axis=1)
-    
+
                 # Scale numeric columns
                 numeric_cols = preprocessor['scaler'].feature_names_in_
                 chunk[numeric_cols] = preprocessor['scaler'].transform(chunk[numeric_cols])
-    
+
                 # Feature order for model
                 feature_cols = [
                     'step', 'amount', 'oldbalanceOrg', 'newbalanceOrig',
@@ -192,26 +199,32 @@ elif app_mode == "Bulk CSV":
                         chunk[col] = 0
                 X = chunk[feature_cols].values.astype(np.float32)
                 X_tensor = torch.tensor(X)
-    
+
                 # Predict
                 with torch.no_grad():
                     logits = model(X_tensor)
                     probs = torch.sigmoid(logits).numpy()
                 chunk["fraud_probability"] = probs
                 results.append(chunk)
-    
+
+                # Update progress bar
+                processed_rows += len(chunk)
+                progress = min(1.0, processed_rows / total_rows)
+                progress_bar.progress(progress)
+
+            progress_bar.empty()  # remove progress bar after completion
             df = pd.concat(results, ignore_index=True)
-    
+
             # Threshold slider
             threshold = st.slider("Fraud Probability Threshold", 0.0, 1.0, 0.5)
             df["predicted_fraud"] = np.where(df["fraud_probability"] > threshold, "Fraud", "Not Fraud")
-    
+
             st.subheader("Predictions (Top 20 rows)")
             st.dataframe(df[["fraud_probability", "predicted_fraud"]].head(20))
-    
+
             st.subheader("⚠️ High Probability Frauds")
             st.dataframe(df[df["predicted_fraud"]=="Fraud"])
-    
+
             # Histogram
             st.subheader("Fraud Probability Distribution")
             fig, ax = plt.subplots()
@@ -220,7 +233,7 @@ elif app_mode == "Bulk CSV":
             ax.set_ylabel("Count")
             st.pyplot(fig)
             
-            #button for histogram
+            # Download histogram
             buf = io.BytesIO()
             fig.savefig(buf, format="png")
             buf.seek(0)
@@ -230,12 +243,12 @@ elif app_mode == "Bulk CSV":
                 file_name="fraud_probability_histogram.png",
                 mime="image/png"
             )
-    
+
             # Only if 'isFraud' column exists
             if 'isFraud' in df.columns:
                 y_true = df['isFraud']
                 y_pred = np.where(df['fraud_probability'] > threshold, 1, 0)
-    
+
                 # Confusion matrix
                 cm = confusion_matrix(y_true, y_pred)
                 st.subheader("Confusion Matrix")
@@ -249,12 +262,12 @@ elif app_mode == "Bulk CSV":
                 fig.savefig(buf_rconf, format="png")
                 buf_rconf.seek(0)
                 st.download_button(
-                    label="Download Confusion matrix as PNG",
+                    label="Download Confusion Matrix as PNG",
                     data=buf_rconf,
-                    file_name="Conf_Matrix.png",
+                    file_name="conf_matrix.png",
                     mime="image/png"
                 )
-    
+
                 # ROC curve
                 fpr, tpr, _ = roc_curve(y_true, df['fraud_probability'])
                 roc_auc = auc(fpr, tpr)
@@ -276,12 +289,12 @@ elif app_mode == "Bulk CSV":
                     file_name="roc_curve.png",
                     mime="image/png"
                 )
-    
+
                 # Classification report
                 st.subheader("Classification Report")
                 report = classification_report(y_true, y_pred, output_dict=True)
                 st.json(report)
-    
+
             # Download CSV
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -290,6 +303,6 @@ elif app_mode == "Bulk CSV":
                 file_name="fraud_predictions.csv",
                 mime="text/csv"
             )
-    
+
         except Exception as e:
             st.error(f"Error processing file: {e}")
